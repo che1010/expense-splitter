@@ -4,6 +4,7 @@ interface Props {
   expenses: Expense[];
   people: Person[];
   onRemove: (id: string) => void;
+  onEdit: (id: string) => void;
 }
 
 function personName(people: Person[], id: string) {
@@ -14,7 +15,7 @@ function personColor(people: Person[], id: string) {
   return people.find(p => p.id === id)?.color ?? '#999';
 }
 
-export default function ExpenseList({ expenses, people, onRemove }: Props) {
+export default function ExpenseList({ expenses, people, onRemove, onEdit }: Props) {
   if (expenses.length === 0) {
     return (
       <div className="card text-center py-8">
@@ -36,13 +37,22 @@ export default function ExpenseList({ expenses, people, onRemove }: Props) {
                 {new Date(expense.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
               </p>
             </div>
-            <button
-              onClick={() => onRemove(expense.id)}
-              className="text-gray-300 hover:text-red-400 transition-colors text-xl leading-none shrink-0"
-              title="Remove expense"
-            >
-              ×
-            </button>
+            <div className="flex items-center gap-1 shrink-0">
+              <button
+                onClick={() => onEdit(expense.id)}
+                className="text-gray-400 hover:text-blue-500 transition-colors px-1.5 py-0.5 text-xs rounded hover:bg-blue-50"
+                title="Edit expense"
+              >
+                Edit
+              </button>
+              <button
+                onClick={() => onRemove(expense.id)}
+                className="text-gray-300 hover:text-red-400 transition-colors text-xl leading-none"
+                title="Remove expense"
+              >
+                ×
+              </button>
+            </div>
           </div>
 
           {/* Amount breakdown */}
@@ -80,7 +90,10 @@ export default function ExpenseList({ expenses, people, onRemove }: Props) {
           {/* Splits */}
           <div>
             <p className="text-xs text-gray-400 mb-1.5">
-              Split {expense.splitType === 'even' ? 'evenly' : expense.splitType === 'percentage' ? 'by percentage' : 'custom'}
+              {expense.splitType === 'even' ? 'Split evenly'
+                : expense.splitType === 'percentage' ? 'Split by percentage'
+                : expense.splitType === 'full' ? 'Owed full amount'
+                : 'Custom split'}
             </p>
             <div className="space-y-1">
               {expense.splits.map(split => (

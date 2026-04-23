@@ -4,7 +4,7 @@ export interface Person {
   color: string;
 }
 
-export type SplitType = 'even' | 'percentage' | 'custom';
+export type SplitType = 'even' | 'percentage' | 'custom' | 'full';
 
 export interface Split {
   personId: string;
