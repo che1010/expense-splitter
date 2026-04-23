@@ -109,10 +109,10 @@ export function useAppStore() {
       });
     });
 
-    // Payments settle balances
+    // Payments settle balances: payer's debt reduces, receiver's credit reduces
     state.payments.forEach(payment => {
-      balances[payment.fromPersonId] = (balances[payment.fromPersonId] ?? 0) - payment.amount;
-      balances[payment.toPersonId] = (balances[payment.toPersonId] ?? 0) + payment.amount;
+      balances[payment.fromPersonId] = (balances[payment.fromPersonId] ?? 0) + payment.amount;
+      balances[payment.toPersonId] = (balances[payment.toPersonId] ?? 0) - payment.amount;
     });
 
     return balances;
