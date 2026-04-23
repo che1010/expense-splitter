@@ -70,6 +70,13 @@ export function useAppStore() {
     }));
   }, [update]);
 
+  const updateExpense = useCallback((id: string, expense: Omit<Expense, 'id' | 'date'>) => {
+    update(s => ({
+      ...s,
+      expenses: s.expenses.map(e => e.id === id ? { ...expense, id, date: e.date } : e),
+    }));
+  }, [update]);
+
   const addPayment = useCallback((payment: Omit<Payment, 'id' | 'date'>) => {
     update(s => ({
       ...s,
@@ -151,6 +158,7 @@ export function useAppStore() {
     removePerson,
     addExpense,
     removeExpense,
+    updateExpense,
     addPayment,
     removePayment,
     getBalances,

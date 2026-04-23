@@ -21,13 +21,27 @@ export default function App() {
   const [tab, setTab] = useState<Tab>('expenses');
   const [modal, setModal] = useState<Modal>(null);
   const [paymentPrefill, setPaymentPrefill] = useState<PaymentPrefill>({});
+  const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
 
   const balances = store.getBalances();
   const settlements = store.getSettlements();
 
-  const handleAddExpense = (expense: Omit<Expense, 'id' | 'date'>) => {
-    store.addExpense(expense);
+  const handleSaveExpense = (expense: Omit<Expense, 'id' | 'date'>) => {
+    if (editingExpense) {
+      store.updateExpense(editingExpense.id, expense);
+    } else {
+      store.addExpense(expense);
+    }
     setModal(null);
+    setEditingExpense(null);
+  };
+
+  const handleEditExpense = (id: string) => {
+    const expense = store.state.expenses.find(e => e.id === id);
+    if (expense) {
+      setEditingExpense(expense);
+      setModal('expense');
+    }
   };
 
   const handleAddPayment = (payment: Omit<Payment, 'id' | 'date'>) => {
@@ -39,7 +53,6 @@ export default function App() {
   const handleSettle = (from: string, to: string, amount: number) => {
     setPaymentPrefill({ from, to, amount });
     setModal('payment');
-    setTab('expenses'); // bring to front
   };
 
   const openPaymentModal = () => {
@@ -141,8 +154,9 @@ export default function App() {
             {modal === 'expense' && (
               <ExpenseForm
                 people={store.state.people}
-                onSave={handleAddExpense}
-                onCancel={() => setModal(null)}
+                initialValues={editingExpense ?? undefined}
+                onSave={handleSaveExpense}
+                onCancel={() => { setModal(null); setEditingExpense(null); }}
               />
             )}
 
@@ -163,6 +177,7 @@ export default function App() {
                 expenses={store.state.expenses}
                 people={store.state.people}
                 onRemove={store.removeExpense}
+                onEdit={handleEditExpense}
               />
             )}
 
