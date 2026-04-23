@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(gh auth *)",
+      "Bash(npm create *)",
+      "Bash(npx create-vite@latest . --template react-ts)",
+      "Bash(npm run *)",
+      "mcp__Claude_Preview__preview_start"
+    ]
+  }
+}
