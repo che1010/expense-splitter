@@ -6,6 +6,7 @@ import ExpenseForm from './components/ExpenseForm';
 import ExpenseList from './components/ExpenseList';
 import PaymentForm from './components/PaymentForm';
 import BalanceSummary from './components/BalanceSummary';
+import ExportImport from './components/ExportImport';
 import type { Expense, Payment } from './types';
 
 const GROUP_CODE_KEY = 'splitease_group_code';
@@ -135,6 +136,14 @@ function MainApp({ groupCode, onLeave }: { groupCode: string; onLeave: () => voi
                 </div>
               </div>
             )}
+
+            <ExportImport
+              state={store.state}
+              balances={balances}
+              settlements={settlements}
+              groupCode={groupCode}
+              onImport={store.replaceState}
+            />
 
             {/* Group code card */}
             <div className="card">

@@ -107,6 +107,10 @@ export function useFirebaseStore(groupCode: string) {
     update(s => ({ ...s, payments: s.payments.filter(p => p.id !== id) }));
   }, [update]);
 
+  const replaceState = useCallback((newState: AppState) => {
+    update(() => newState);
+  }, [update]);
+
   // ── Balance calculations ────────────────────────────────────────
   const getBalances = useCallback(() => {
     const balances: Record<string, number> = {};
@@ -165,6 +169,7 @@ export function useFirebaseStore(groupCode: string) {
     updateExpense,
     addPayment,
     removePayment,
+    replaceState,
     getBalances,
     getSettlements,
   };
