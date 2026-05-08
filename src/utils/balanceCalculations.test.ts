@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { computeBalances, computeSettlements } from './balanceCalculations';
+import { computeBalances, computeSettlements, computeBilateralSettlements } from './balanceCalculations';
 import type { Person, Expense, Payment } from '../types';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -253,5 +253,173 @@ describe('computeSettlements', () => {
     const fromCarol = s.find(t => t.from === 'carol');
     expect(fromBob?.amount).toBeCloseTo(20);
     expect(fromCarol?.amount).toBeCloseTo(30);
+  });
+});
+
+// ── computeBilateralSettlements ───────────────────────────────────────────────
+
+describe('computeBilateralSettlements', () => {
+  it('returns empty array when there are no expenses', () => {
+    const s = computeBilateralSettlements(people, [], []);
+    expect(s).toHaveLength(0);
+  });
+
+  it('shows one entry when only one person owes another', () => {
+    // Alice pays $90 for everyone; Bob and Carol each owe Alice $30
+    const expense = makeExpense('e1', 'alice', 90, [
+      { personId: 'alice', amount: 30 },
+      { personId: 'bob',   amount: 30 },
+      { personId: 'carol', amount: 30 },
+    ]);
+    const s = computeBilateralSettlements(people, [expense], []);
+
+    expect(s).toHaveLength(2);
+    const bobToAlice   = s.find(t => t.from === 'bob'   && t.to === 'alice');
+    const carolToAlice = s.find(t => t.from === 'carol' && t.to === 'alice');
+    expect(bobToAlice?.amount).toBeCloseTo(30);
+    expect(carolToAlice?.amount).toBeCloseTo(30);
+  });
+
+  it('nets bilateral debts when two people owe each other across different expenses', () => {
+    // Alice pays $90 (Bob owes Alice $30, Carol owes Alice $30)
+    // Bob pays $60 (Alice owes Bob $20, Carol owes Bob $20)
+    const expenses = [
+      makeExpense('e1', 'alice', 90, [
+        { personId: 'alice', amount: 30 },
+        { personId: 'bob',   amount: 30 },
+        { personId: 'carol', amount: 30 },
+      ]),
+      makeExpense('e2', 'bob', 60, [
+        { personId: 'alice', amount: 20 },
+        { personId: 'bob',   amount: 20 },
+        { personId: 'carol', amount: 20 },
+      ]),
+    ];
+    const s = computeBilateralSettlements(people, expenses, []);
+
+    // Alice↔Bob: Bob owes Alice $30, Alice owes Bob $20 → net Bob→Alice $10
+    const bobToAlice = s.find(t => t.from === 'bob' && t.to === 'alice');
+    expect(bobToAlice?.amount).toBeCloseTo(10);
+
+    // No entry where Alice owes Bob
+    expect(s.find(t => t.from === 'alice' && t.to === 'bob')).toBeUndefined();
+  });
+
+  it('real-world Hampton scenario: net creditor (Che) still owes net creditor (Guani) bilaterally', () => {
+    // Reproduces the exact user scenario from the exported XLS.
+    // Guani, Oca, Che  — abbreviated to alice=Guani, bob=Oca, carol=Che for reuse
+    // Pre-Hampton expenses result in: Guani owes Che $118.64
+    // Hampton (Guani pays, 3-way even split) means Che owes Guani $171.16
+    // Net bilateral Che→Guani: 171.16 − 118.64 = $52.52
+
+    const guani = makePerson('guani', 'Guani');
+    const oca   = makePerson('oca',   'Oca');
+    const che   = makePerson('che',   'Che');
+    const trio  = [guani, oca, che];
+
+    const expenses = [
+      // HAMPTON – Guani pays, 3-way even split
+      makeExpense('hampton', 'guani', 513.48, [
+        { personId: 'guani', amount: 171.16 },
+        { personId: 'oca',   amount: 171.16 },
+        { personId: 'che',   amount: 171.16 },
+      ]),
+      // Noodles Asia – Che pays, 3-way split
+      makeExpense('noodles', 'che', 225.84, [
+        { personId: 'guani', amount: 75.28 },
+        { personId: 'oca',   amount: 75.28 },
+        { personId: 'che',   amount: 75.28 },
+      ]),
+      // YARD HOUSE DRINKS Stella – Che pays, Guani+Oca only (50/50)
+      makeExpense('stella', 'che', 40.22, [
+        { personId: 'guani', amount: 20.11 },
+        { personId: 'oca',   amount: 20.11 },
+      ]),
+      // YARD HOUSE food – Che pays, 3-way split
+      makeExpense('yard', 'che', 69.77, [
+        { personId: 'guani', amount: 23.25 },
+        { personId: 'oca',   amount: 23.26 },
+        { personId: 'che',   amount: 23.26 },
+      ]),
+    ];
+
+    const s = computeBilateralSettlements(trio, expenses, []);
+
+    // Guani↔Che bilateral
+    //   Guani owes Che:  75.28 + 20.11 + 23.25 = 118.64  (from Noodles, Stella, Yard House)
+    //   Che owes Guani:  171.16                           (from Hampton)
+    //   Net → Che owes Guani: 171.16 − 118.64 = 52.52
+    const cheToGuani = s.find(t => t.from === 'che' && t.to === 'guani');
+    expect(cheToGuani).toBeDefined();
+    expect(cheToGuani?.amount).toBeCloseTo(52.52);
+
+    // Guani should NOT appear as owing Che anything
+    expect(s.find(t => t.from === 'guani' && t.to === 'che')).toBeUndefined();
+
+    // Oca↔Guani: Oca owes Guani $171.16 (Hampton only, Guani not in Oca-paid expenses)
+    const ocaToGuani = s.find(t => t.from === 'oca' && t.to === 'guani');
+    expect(ocaToGuani?.amount).toBeCloseTo(171.16);
+
+    // Oca↔Che: Oca owes Che for Noodles+Stella+Yard = 75.28+20.11+23.26 = 118.65
+    const ocaToChe = s.find(t => t.from === 'oca' && t.to === 'che');
+    expect(ocaToChe?.amount).toBeCloseTo(118.65);
+  });
+
+  it('reduces bilateral amounts when a payment is recorded between that pair', () => {
+    const expense = makeExpense('e1', 'alice', 90, [
+      { personId: 'alice', amount: 30 },
+      { personId: 'bob',   amount: 30 },
+      { personId: 'carol', amount: 30 },
+    ]);
+    const payment = makePayment('p1', 'bob', 'alice', 10);
+    const s = computeBilateralSettlements(people, [expense], [payment]);
+
+    const bobToAlice = s.find(t => t.from === 'bob' && t.to === 'alice');
+    expect(bobToAlice?.amount).toBeCloseTo(20); // 30 − 10 payment
+  });
+
+  it('removes a pair entry entirely once fully paid', () => {
+    const expense = makeExpense('e1', 'alice', 90, [
+      { personId: 'alice', amount: 30 },
+      { personId: 'bob',   amount: 30 },
+      { personId: 'carol', amount: 30 },
+    ]);
+    const payments = [
+      makePayment('p1', 'bob',   'alice', 30),
+      makePayment('p2', 'carol', 'alice', 30),
+    ];
+    const s = computeBilateralSettlements(people, [expense], payments);
+    expect(s).toHaveLength(0);
+  });
+
+  it('applying all bilateral settlements zeros every balance', () => {
+    // After all bilateral payments are recorded, computeBalances should return all zeros.
+    const expenses = [
+      makeExpense('e1', 'alice', 90, [
+        { personId: 'alice', amount: 30 },
+        { personId: 'bob',   amount: 30 },
+        { personId: 'carol', amount: 30 },
+      ]),
+      makeExpense('e2', 'bob', 60, [
+        { personId: 'alice', amount: 20 },
+        { personId: 'bob',   amount: 20 },
+        { personId: 'carol', amount: 20 },
+      ]),
+      makeExpense('e3', 'carol', 30, [
+        { personId: 'alice', amount: 10 },
+        { personId: 'bob',   amount: 10 },
+        { personId: 'carol', amount: 10 },
+      ]),
+    ];
+
+    const settlements = computeBilateralSettlements(people, expenses, []);
+    const asPayments: Payment[] = settlements.map((s, i) =>
+      makePayment(`p${i}`, s.from, s.to, s.amount),
+    );
+
+    const finalBalances = computeBalances(people, expenses, asPayments);
+    expect(finalBalances.alice).toBeCloseTo(0);
+    expect(finalBalances.bob).toBeCloseTo(0);
+    expect(finalBalances.carol).toBeCloseTo(0);
   });
 });

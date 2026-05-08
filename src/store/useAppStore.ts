@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import type { AppState, Person, Expense, Payment } from '../types';
-import { computeBalances, computeSettlements } from '../utils/balanceCalculations';
+import { computeBalances, computeBilateralSettlements } from '../utils/balanceCalculations';
 
 const COLORS = [
   '#3B82F6', '#EF4444', '#F59E0B', '#8B5CF6',
@@ -101,10 +101,10 @@ export function useAppStore() {
     [state],
   );
 
-  // Minimal set of transactions to settle all debts
+  // Bilateral settlements: one entry per pair showing exact who-owes-whom
   const getSettlements = useCallback(
-    () => computeSettlements(getBalances()),
-    [getBalances],
+    () => computeBilateralSettlements(state.people, state.expenses, state.payments),
+    [state],
   );
 
   return {
