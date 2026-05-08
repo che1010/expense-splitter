@@ -3,6 +3,7 @@ import { doc, onSnapshot, setDoc, getDoc } from 'firebase/firestore';
 import { v4 as uuidv4 } from 'uuid';
 import { db } from '../firebase';
 import type { AppState, Person, Expense, Payment } from '../types';
+import { computeBalances, computeBilateralSettlements } from '../utils/balanceCalculations';
 
 const COLORS = [
   '#3B82F6', '#EF4444', '#F59E0B', '#8B5CF6',
@@ -112,52 +113,15 @@ export function useFirebaseStore(groupCode: string) {
   }, [update]);
 
   // ── Balance calculations ────────────────────────────────────────
-  const getBalances = useCallback(() => {
-    const balances: Record<string, number> = {};
-    state.people.forEach(p => { balances[p.id] = 0; });
+  const getBalances = useCallback(
+    () => computeBalances(state.people, state.expenses, state.payments),
+    [state],
+  );
 
-    state.expenses.forEach(expense => {
-      balances[expense.paidBy] = (balances[expense.paidBy] ?? 0) + expense.total;
-      expense.splits.forEach(split => {
-        balances[split.personId] = (balances[split.personId] ?? 0) - split.amount;
-      });
-    });
-
-    state.payments.forEach(payment => {
-      balances[payment.fromPersonId] = (balances[payment.fromPersonId] ?? 0) + payment.amount;
-      balances[payment.toPersonId] = (balances[payment.toPersonId] ?? 0) - payment.amount;
-    });
-
-    return balances;
-  }, [state]);
-
-  const getSettlements = useCallback(() => {
-    const balances = getBalances();
-    const creditors: { id: string; amount: number }[] = [];
-    const debtors: { id: string; amount: number }[] = [];
-
-    Object.entries(balances).forEach(([id, amount]) => {
-      if (amount > 0.005) creditors.push({ id, amount });
-      else if (amount < -0.005) debtors.push({ id, amount: -amount });
-    });
-
-    creditors.sort((a, b) => b.amount - a.amount);
-    debtors.sort((a, b) => b.amount - a.amount);
-
-    const settlements: { from: string; to: string; amount: number }[] = [];
-    let ci = 0, di = 0;
-    while (ci < creditors.length && di < debtors.length) {
-      const credit = creditors[ci];
-      const debt = debtors[di];
-      const amount = Math.round(Math.min(credit.amount, debt.amount) * 100) / 100;
-      settlements.push({ from: debt.id, to: credit.id, amount });
-      credit.amount -= amount;
-      debt.amount -= amount;
-      if (credit.amount < 0.005) ci++;
-      if (debt.amount < 0.005) di++;
-    }
-    return settlements;
-  }, [getBalances]);
+  const getSettlements = useCallback(
+    () => computeBilateralSettlements(state.people, state.expenses, state.payments),
+    [state],
+  );
 
   return {
     state,
