@@ -12,6 +12,12 @@ export interface Split {
   percentage: number;
 }
 
+export interface LineItem {
+  id: string;
+  description: string;
+  price: number;
+}
+
 export interface Expense {
   id: string;
   title: string;
@@ -26,6 +32,7 @@ export interface Expense {
   splits: Split[];
   date: string;
   note: string;
+  items?: LineItem[];
 }
 
 export interface Payment {

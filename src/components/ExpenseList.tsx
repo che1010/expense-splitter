@@ -57,6 +57,17 @@ export default function ExpenseList({ expenses, people, onRemove, onEdit }: Prop
 
           {/* Amount breakdown */}
           <div className="bg-gray-50 rounded-lg px-3 py-2 text-xs space-y-1 mb-3">
+            {expense.items && expense.items.length > 0 && (
+              <>
+                {expense.items.map(item => (
+                  <div key={item.id} className="flex justify-between text-gray-400">
+                    <span className="truncate mr-2">{item.description || 'Item'}</span>
+                    <span>${item.price.toFixed(2)}</span>
+                  </div>
+                ))}
+                <div className="border-t border-gray-200 my-0.5" />
+              </>
+            )}
             <div className="flex justify-between text-gray-500">
               <span>Subtotal</span><span>${expense.subtotal.toFixed(2)}</span>
             </div>
