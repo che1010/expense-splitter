@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import type { Person, SplitType, Split, Expense } from '../types';
+import type { Person, SplitType, Split, Expense, LineItem } from '../types';
 
 interface Props {
   people: Person[];
@@ -23,6 +23,10 @@ const TIP_PRESETS = [
   { label: 'Custom', value: -1 },
 ];
 
+function newLineItem(): { id: string; description: string; price: string } {
+  return { id: crypto.randomUUID(), description: '', price: '' };
+}
+
 function getInitialTaxPreset(taxRate: number): number {
   if (taxRate === 0) return 0;
   if (taxRate === 10.25) return 10.25;
@@ -44,7 +48,15 @@ export default function ExpenseForm({ people, initialValues, onSave, onCancel }:
   const [title, setTitle] = useState(initialValues?.title ?? '');
   const [note, setNote] = useState(initialValues?.note ?? '');
   const [paidBy, setPaidBy] = useState(initialValues?.paidBy ?? people[0]?.id ?? '');
+  const [entryMode, setEntryMode] = useState<'subtotal' | 'itemize'>(() =>
+    initialValues?.items && initialValues.items.length > 0 ? 'itemize' : 'subtotal'
+  );
   const [subtotal, setSubtotal] = useState(initialValues ? String(initialValues.subtotal) : '');
+  const [lineItems, setLineItems] = useState<Array<{ id: string; description: string; price: string }>>(() => {
+    if (initialValues?.items && initialValues.items.length > 0)
+      return initialValues.items.map(i => ({ id: i.id, description: i.description, price: String(i.price) }));
+    return [newLineItem()];
+  });
 
   // ── Tax ───────────────────────────────────────────────────────────
   const [taxPreset, setTaxPreset] = useState<number>(() =>
@@ -94,8 +106,24 @@ export default function ExpenseForm({ people, initialValues, onSave, onCancel }:
     return people[0]?.id ?? '';
   });
 
+  // ── Line item helpers ─────────────────────────────────────────────
+  const addLineItem = () => setLineItems(prev => [...prev, newLineItem()]);
+  const removeLineItem = (id: string) => setLineItems(prev => prev.filter(i => i.id !== id));
+  const updateLineItem = (id: string, field: 'description' | 'price', value: string) =>
+    setLineItems(prev => prev.map(i => i.id === id ? { ...i, [field]: value } : i));
+  const switchEntryMode = (mode: 'subtotal' | 'itemize') => {
+    if (mode === 'subtotal' && entryMode === 'itemize') {
+      const calc = lineItems.reduce((s, i) => s + (parseFloat(i.price) || 0), 0);
+      if (calc > 0) setSubtotal(calc.toFixed(2));
+    }
+    setEntryMode(mode);
+  };
+
   // ── Derived values ────────────────────────────────────────────────
-  const subtotalNum = parseFloat(subtotal) || 0;
+  const subtotalNum =
+    entryMode === 'itemize'
+      ? Math.round(lineItems.reduce((s, i) => s + (parseFloat(i.price) || 0), 0) * 100) / 100
+      : parseFloat(subtotal) || 0;
   const taxRate = taxPreset === -1 ? (parseFloat(customTaxPct) || 0) : taxPreset;
   const taxAmount = Math.round(subtotalNum * (taxRate / 100) * 100) / 100;
   const tipRate = tipPreset === -1 ? (parseFloat(customTip) || 0) : tipPreset;
@@ -202,10 +230,16 @@ export default function ExpenseForm({ people, initialValues, onSave, onCancel }:
 
   const handleSave = () => {
     if (!isValid) return;
+    const savedItems: LineItem[] | undefined =
+      entryMode === 'itemize'
+        ? lineItems
+            .filter(i => i.description.trim() || parseFloat(i.price) > 0)
+            .map(i => ({ id: i.id, description: i.description.trim(), price: parseFloat(i.price) || 0 }))
+        : undefined;
     onSave({
       title: title.trim(), note: note.trim(), paidBy,
       subtotal: subtotalNum, taxRate, taxAmount, tipRate, tipAmount, total,
-      splitType, splits,
+      splitType, splits, items: savedItems,
     });
   };
 
@@ -228,22 +262,80 @@ export default function ExpenseForm({ people, initialValues, onSave, onCancel }:
         </div>
       </div>
 
-      {/* Paid By & Subtotal */}
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className="label">Paid by *</label>
-          <select className="input" value={paidBy} onChange={e => setPaidBy(e.target.value)}>
-            {people.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-          </select>
+      {/* Paid By */}
+      <div>
+        <label className="label">Paid by *</label>
+        <select className="input" value={paidBy} onChange={e => setPaidBy(e.target.value)}>
+          {people.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+        </select>
+      </div>
+
+      {/* Amount — Subtotal or Itemize */}
+      <div>
+        <label className="label">Amount *</label>
+        <div className="flex rounded-lg border border-gray-300 overflow-hidden mb-3">
+          <button
+            onClick={() => switchEntryMode('subtotal')}
+            className={`flex-1 py-1.5 text-xs font-medium transition-colors ${
+              entryMode === 'subtotal' ? 'bg-green-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'
+            }`}
+          >
+            Subtotal
+          </button>
+          <button
+            onClick={() => switchEntryMode('itemize')}
+            className={`flex-1 py-1.5 text-xs font-medium border-l border-gray-300 transition-colors ${
+              entryMode === 'itemize' ? 'bg-green-600 text-white border-l-green-600' : 'bg-white text-gray-600 hover:bg-gray-50'
+            }`}
+          >
+            Itemize
+          </button>
         </div>
-        <div>
-          <label className="label">Subtotal (before tax) *</label>
+
+        {entryMode === 'subtotal' ? (
           <div className="relative">
             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">$</span>
             <input className="input pl-7" type="number" min="0" step="0.01" placeholder="0.00"
               value={subtotal} onChange={e => setSubtotal(e.target.value)} />
           </div>
-        </div>
+        ) : (
+          <div className="space-y-2">
+            {lineItems.map((item, index) => (
+              <div key={item.id} className="flex items-center gap-2">
+                <input
+                  className="input flex-1 min-w-0"
+                  placeholder={`Item ${index + 1}`}
+                  value={item.description}
+                  onChange={e => updateLineItem(item.id, 'description', e.target.value)}
+                />
+                <div className="relative w-28 shrink-0">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">$</span>
+                  <input
+                    className="input pl-7"
+                    type="number" min="0" step="0.01" placeholder="0.00"
+                    value={item.price}
+                    onChange={e => updateLineItem(item.id, 'price', e.target.value)}
+                  />
+                </div>
+                {lineItems.length > 1 && (
+                  <button
+                    onClick={() => removeLineItem(item.id)}
+                    className="text-gray-300 hover:text-red-400 transition-colors text-xl leading-none shrink-0"
+                  >×</button>
+                )}
+              </div>
+            ))}
+            <button onClick={addLineItem} className="text-xs text-green-600 hover:text-green-700 font-medium">
+              + Add item
+            </button>
+            {subtotalNum > 0 && (
+              <p className="text-xs text-gray-500">
+                Subtotal: <strong>${subtotalNum.toFixed(2)}</strong>{' '}
+                ({lineItems.filter(i => parseFloat(i.price) > 0).length} item{lineItems.filter(i => parseFloat(i.price) > 0).length !== 1 ? 's' : ''})
+              </p>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Tax */}
@@ -324,6 +416,13 @@ export default function ExpenseForm({ people, initialValues, onSave, onCancel }:
       {/* Total summary */}
       {subtotalNum > 0 && (
         <div className="bg-green-50 border border-green-200 rounded-lg px-4 py-3 text-sm space-y-1">
+          {entryMode === 'itemize' && lineItems.filter(i => parseFloat(i.price) > 0).map(item => (
+            <div key={item.id} className="flex justify-between text-gray-500">
+              <span className="truncate mr-2">{item.description || 'Item'}</span>
+              <span>${(parseFloat(item.price) || 0).toFixed(2)}</span>
+            </div>
+          ))}
+          {entryMode === 'itemize' && <div className="border-t border-green-100 pt-0.5" />}
           <div className="flex justify-between text-gray-600"><span>Subtotal</span><span>${subtotalNum.toFixed(2)}</span></div>
           {taxAmount > 0 && <div className="flex justify-between text-gray-600"><span>Tax ({taxRate}%)</span><span>${taxAmount.toFixed(2)}</span></div>}
           {tipAmount > 0 && <div className="flex justify-between text-gray-600"><span>Tip ({tipRate}%)</span><span>${tipAmount.toFixed(2)}</span></div>}
