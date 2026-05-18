@@ -47,7 +47,10 @@ export function useFirebaseStore(groupCode: string) {
   const persist = useCallback(async (nextState: AppState) => {
     setSyncing(true);
     try {
-      await setDoc(docRef, nextState);
+      // JSON round-trip strips `undefined` fields; Firestore rejects them and
+      // would silently fail, reverting the optimistic update via onSnapshot.
+      const clean = JSON.parse(JSON.stringify(nextState)) as AppState;
+      await setDoc(docRef, clean);
     } finally {
       setSyncing(false);
     }
