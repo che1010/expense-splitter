@@ -4,7 +4,7 @@ import type { Person, SplitType, Split, Expense, LineItem } from '../types';
 interface Props {
   people: Person[];
   initialValues?: Expense;
-  onSave: (expense: Omit<Expense, 'id' | 'date'>) => void;
+  onSave: (expense: Omit<Expense, 'id'>) => void;
   onCancel: () => void;
 }
 
@@ -48,6 +48,14 @@ export default function ExpenseForm({ people, initialValues, onSave, onCancel }:
   const [title, setTitle] = useState(initialValues?.title ?? '');
   const [note, setNote] = useState(initialValues?.note ?? '');
   const [paidBy, setPaidBy] = useState(initialValues?.paidBy ?? people[0]?.id ?? '');
+  const [date, setDate] = useState<string>(() => {
+    if (initialValues?.date) {
+      const d = new Date(initialValues.date);
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    }
+    const today = new Date();
+    return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+  });
   const [entryMode, setEntryMode] = useState<'subtotal' | 'itemize'>(() =>
     initialValues?.items && initialValues.items.length > 0 ? 'itemize' : 'subtotal'
   );
@@ -240,6 +248,7 @@ export default function ExpenseForm({ people, initialValues, onSave, onCancel }:
       title: title.trim(), note: note.trim(), paidBy,
       subtotal: subtotalNum, taxRate, taxAmount, tipRate, tipAmount, total,
       splitType, splits, items: savedItems,
+      date: new Date(date + 'T12:00:00').toISOString(),
     });
   };
 
@@ -259,6 +268,10 @@ export default function ExpenseForm({ people, initialValues, onSave, onCancel }:
         <div className="col-span-2">
           <label className="label">Note</label>
           <input className="input" placeholder="Optional note" value={note} onChange={e => setNote(e.target.value)} />
+        </div>
+        <div>
+          <label className="label">Date *</label>
+          <input className="input" type="date" value={date} onChange={e => setDate(e.target.value)} />
         </div>
       </div>
 

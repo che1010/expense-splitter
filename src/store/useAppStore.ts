@@ -54,11 +54,11 @@ export function useAppStore() {
     }));
   }, [update]);
 
-  const addExpense = useCallback((expense: Omit<Expense, 'id' | 'date'>) => {
+  const addExpense = useCallback((expense: Omit<Expense, 'id'>) => {
     update(s => ({
       ...s,
       expenses: [
-        { ...expense, id: uuidv4(), date: new Date().toISOString() },
+        { ...expense, id: uuidv4() },
         ...s.expenses,
       ],
     }));
@@ -71,10 +71,10 @@ export function useAppStore() {
     }));
   }, [update]);
 
-  const updateExpense = useCallback((id: string, expense: Omit<Expense, 'id' | 'date'>) => {
+  const updateExpense = useCallback((id: string, expense: Omit<Expense, 'id'>) => {
     update(s => ({
       ...s,
-      expenses: s.expenses.map(e => e.id === id ? { ...expense, id, date: e.date } : e),
+      expenses: s.expenses.map(e => e.id === id ? { ...expense, id } : e),
     }));
   }, [update]);
 
