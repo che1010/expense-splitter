@@ -32,7 +32,7 @@ function MainApp({ groupCode, onLeave }: { groupCode: string; onLeave: () => voi
   const balances = store.getBalances();
   const settlements = store.getSettlements();
 
-  const handleSaveExpense = (expense: Omit<Expense, 'id' | 'date'>) => {
+  const handleSaveExpense = (expense: Omit<Expense, 'id'>) => {
     if (editingExpense) {
       store.updateExpense(editingExpense.id, expense);
     } else {

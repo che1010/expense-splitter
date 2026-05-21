@@ -81,10 +81,10 @@ export function useFirebaseStore(groupCode: string) {
   }, [update]);
 
   // ── Expenses ────────────────────────────────────────────────────
-  const addExpense = useCallback((expense: Omit<Expense, 'id' | 'date'>) => {
+  const addExpense = useCallback((expense: Omit<Expense, 'id'>) => {
     update(s => ({
       ...s,
-      expenses: [{ ...expense, id: uuidv4(), date: new Date().toISOString() }, ...s.expenses],
+      expenses: [{ ...expense, id: uuidv4() }, ...s.expenses],
     }));
   }, [update]);
 
@@ -92,10 +92,10 @@ export function useFirebaseStore(groupCode: string) {
     update(s => ({ ...s, expenses: s.expenses.filter(e => e.id !== id) }));
   }, [update]);
 
-  const updateExpense = useCallback((id: string, expense: Omit<Expense, 'id' | 'date'>) => {
+  const updateExpense = useCallback((id: string, expense: Omit<Expense, 'id'>) => {
     update(s => ({
       ...s,
-      expenses: s.expenses.map(e => e.id === id ? { ...expense, id, date: e.date } : e),
+      expenses: s.expenses.map(e => e.id === id ? { ...expense, id } : e),
     }));
   }, [update]);
 
