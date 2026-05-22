@@ -17,6 +17,7 @@ export default function ExportImport({ state, balances, settlements, groupCode, 
   const [warnings, setWarnings] = useState<string[]>([]);
   const [importError, setImportError] = useState('');
   const [exported, setExported] = useState(false);
+  const [isOpen, setIsOpen] = useState(false);
 
   const handleExport = () => {
     exportToSpreadsheet(state, balances, settlements, groupCode);
@@ -57,8 +58,16 @@ export default function ExportImport({ state, balances, settlements, groupCode, 
     : '';
 
   return (
-    <div className="card space-y-3">
-      <h2 className="text-base font-bold text-gray-800">Backup &amp; Restore</h2>
+    <div className="card">
+      <button
+        onClick={() => setIsOpen(o => !o)}
+        className="flex items-center justify-between w-full text-left"
+      >
+        <h2 className="text-base font-bold text-gray-800">Backup &amp; Restore</h2>
+        <span className="text-gray-400 text-xs">{isOpen ? '▲' : '▼'}</span>
+      </button>
+
+      {isOpen && <div className="space-y-3 mt-3">
       <p className="text-xs text-gray-500">
         Export your data as an Excel spreadsheet, or import a previous backup to restore it.
       </p>
@@ -124,6 +133,7 @@ export default function ExportImport({ state, balances, settlements, groupCode, 
           </div>
         </div>
       )}
+      </div>}
     </div>
   );
 }

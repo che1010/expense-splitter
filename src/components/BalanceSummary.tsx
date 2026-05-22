@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import type { Person, Payment } from '../types';
 
 interface Settlement {
@@ -32,6 +33,9 @@ function Avatar({ person }: { person: Person | undefined }) {
 }
 
 export default function BalanceSummary({ people, balances, settlements, payments, onRecordPayment, onRemovePayment }: Props) {
+  const [balancesOpen, setBalancesOpen] = useState(true);
+  const [whoPaysOpen, setWhoPaysOpen] = useState(true);
+
   if (people.length === 0) {
     return (
       <div className="card text-center py-6">
@@ -46,34 +50,50 @@ export default function BalanceSummary({ people, balances, settlements, payments
     <div className="space-y-4">
       {/* Individual balances */}
       <div className="card">
-        <h2 className="text-base font-bold text-gray-800 mb-4">Balances</h2>
-        <div className="space-y-2">
-          {people.map(person => {
-            const balance = balances[person.id] ?? 0;
-            const isPositive = balance > 0.005;
-            const isNegative = balance < -0.005;
-            return (
-              <div key={person.id} className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Avatar person={person} />
-                  <span className="text-sm font-medium text-gray-700">{person.name}</span>
-                </div>
-                <span className={`text-sm font-semibold ${isPositive ? 'text-green-600' : isNegative ? 'text-red-500' : 'text-gray-400'}`}>
-                  {isPositive ? '+' : ''}{balance.toFixed(2)}
-                </span>
-              </div>
-            );
-          })}
-        </div>
-        <p className="text-xs text-gray-400 mt-3">
-          Positive = owed money · Negative = owes money
-        </p>
+        <button
+          onClick={() => setBalancesOpen(o => !o)}
+          className="flex items-center justify-between w-full text-left"
+        >
+          <h2 className="text-base font-bold text-gray-800">Balances</h2>
+          <span className="text-gray-400 text-xs">{balancesOpen ? '▲' : '▼'}</span>
+        </button>
+        {balancesOpen && (
+          <div className="mt-4">
+            <div className="space-y-2">
+              {people.map(person => {
+                const balance = balances[person.id] ?? 0;
+                const isPositive = balance > 0.005;
+                const isNegative = balance < -0.005;
+                return (
+                  <div key={person.id} className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Avatar person={person} />
+                      <span className="text-sm font-medium text-gray-700">{person.name}</span>
+                    </div>
+                    <span className={`text-sm font-semibold ${isPositive ? 'text-green-600' : isNegative ? 'text-red-500' : 'text-gray-400'}`}>
+                      {isPositive ? '+' : ''}{balance.toFixed(2)}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+            <p className="text-xs text-gray-400 mt-3">
+              Positive = owed money · Negative = owes money
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Settlement suggestions */}
       <div className="card">
-        <h2 className="text-base font-bold text-gray-800 mb-1">Who Pays Whom</h2>
-        {allSettled ? (
+        <button
+          onClick={() => setWhoPaysOpen(o => !o)}
+          className="flex items-center justify-between w-full text-left"
+        >
+          <h2 className="text-base font-bold text-gray-800">Who Pays Whom</h2>
+          <span className="text-gray-400 text-xs">{whoPaysOpen ? '▲' : '▼'}</span>
+        </button>
+        {whoPaysOpen && (allSettled ? (
           <div className="flex items-center gap-2 py-3">
             <span className="text-green-500 text-lg">✓</span>
             <p className="text-sm text-green-600 font-medium">All settled up!</p>
@@ -105,7 +125,7 @@ export default function BalanceSummary({ people, balances, settlements, payments
               );
             })}
           </div>
-        )}
+        ))}
       </div>
 
       {/* Payment history */}

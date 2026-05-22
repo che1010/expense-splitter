@@ -1,4 +1,7 @@
+import { useState } from 'react';
 import type { Expense, Person } from '../types';
+
+type SortBy = 'date-desc' | 'date-asc' | 'name-asc' | 'name-desc';
 
 interface Props {
   expenses: Expense[];
@@ -16,18 +19,54 @@ function personColor(people: Person[], id: string) {
 }
 
 export default function ExpenseList({ expenses, people, onRemove, onEdit }: Props) {
-  if (expenses.length === 0) {
-    return (
-      <div className="card text-center py-8">
-        <div className="text-4xl mb-2">🧾</div>
-        <p className="text-sm text-gray-400">No expenses yet. Add one above!</p>
-      </div>
-    );
-  }
+  const [isOpen, setIsOpen] = useState(true);
+  const [sortBy, setSortBy] = useState<SortBy>('date-desc');
+
+  const sorted = [...expenses].sort((a, b) => {
+    if (sortBy === 'date-desc') return new Date(b.date).getTime() - new Date(a.date).getTime();
+    if (sortBy === 'date-asc')  return new Date(a.date).getTime() - new Date(b.date).getTime();
+    if (sortBy === 'name-asc')  return a.title.localeCompare(b.title);
+    return b.title.localeCompare(a.title);
+  });
 
   return (
     <div className="space-y-3">
-      {expenses.map(expense => (
+      {/* Header: collapse toggle + sort */}
+      <div className="card py-3 px-4">
+        <div className="flex items-center justify-between">
+          <button
+            onClick={() => setIsOpen(o => !o)}
+            className="flex items-center gap-2 font-bold text-gray-800 hover:text-gray-600 transition-colors"
+          >
+            <span>Expenses</span>
+            {expenses.length > 0 && (
+              <span className="text-xs font-normal text-gray-400">({expenses.length})</span>
+            )}
+            <span className="text-gray-400 text-xs ml-1">{isOpen ? '▲' : '▼'}</span>
+          </button>
+          {isOpen && expenses.length > 0 && (
+            <select
+              value={sortBy}
+              onChange={e => setSortBy(e.target.value as SortBy)}
+              className="text-xs border border-gray-200 rounded-md px-2 py-1 text-gray-600 bg-white focus:outline-none focus:border-green-400"
+            >
+              <option value="date-desc">Date ↓ (newest)</option>
+              <option value="date-asc">Date ↑ (oldest)</option>
+              <option value="name-asc">Name A–Z</option>
+              <option value="name-desc">Name Z–A</option>
+            </select>
+          )}
+        </div>
+      </div>
+
+      {isOpen && expenses.length === 0 && (
+        <div className="card text-center py-8">
+          <div className="text-4xl mb-2">🧾</div>
+          <p className="text-sm text-gray-400">No expenses yet. Add one above!</p>
+        </div>
+      )}
+
+      {isOpen && sorted.map(expense => (
         <div key={expense.id} className="card">
           <div className="flex items-start justify-between gap-2 mb-3">
             <div className="min-w-0">
@@ -131,3 +170,4 @@ export default function ExpenseList({ expenses, people, onRemove, onEdit }: Prop
     </div>
   );
 }
+
