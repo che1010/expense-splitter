@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { doc, onSnapshot, setDoc, getDoc, collection, getDocs } from 'firebase/firestore';
+import { doc, onSnapshot, setDoc, getDoc, collection, getDocs, updateDoc } from 'firebase/firestore';
 import { v4 as uuidv4 } from 'uuid';
 import { db } from '../firebase';
 import type { AppState, Person, Expense, Payment, GroupSearchResult } from '../types';
@@ -60,11 +60,20 @@ export function useFirebaseStore(groupCode: string) {
   useEffect(() => {
     const unsubscribe = onSnapshot(docRef, (snap) => {
       if (snap.exists()) {
-        setState(snap.data() as AppState);
+        const data = snap.data() as AppState;
+        setState(data);
+        // Backfill groupName for groups created before this feature existed
+        if (!data.groupName) {
+          const defaultName = `Group_${groupCode}`;
+          updateDoc(docRef, {
+            groupName: defaultName,
+            groupNameLower: defaultName.toLowerCase(),
+          }).catch(() => { /* non-critical — silently ignore */ });
+        }
       }
     });
     return unsubscribe;
-  }, [docRef]);
+  }, [docRef, groupCode]);
 
   // Write the full state back to Firestore
   const persist = useCallback(async (nextState: AppState) => {
