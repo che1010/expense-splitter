@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { doc, onSnapshot, setDoc, getDoc } from 'firebase/firestore';
+import { doc, onSnapshot, setDoc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { v4 as uuidv4 } from 'uuid';
 import { db } from '../firebase';
-import type { AppState, Person, Expense, Payment } from '../types';
+import type { AppState, Person, Expense, Payment, GroupSearchResult } from '../types';
 import { computeBalances, computeBilateralSettlements } from '../utils/balanceCalculations';
 
 const COLORS = [
@@ -13,7 +13,12 @@ const COLORS = [
 const EMPTY_STATE: AppState = { people: [], expenses: [], payments: [] };
 
 export async function createGroup(code: string): Promise<void> {
-  await setDoc(doc(db, 'groups', code), EMPTY_STATE);
+  await setDoc(doc(db, 'groups', code), { ...EMPTY_STATE, groupName: `Group_${code}` });
+}
+
+export async function searchGroupsByName(name: string): Promise<GroupSearchResult[]> {
+  const snap = await getDocs(query(collection(db, 'groups'), where('groupName', '==', name)));
+  return snap.docs.map(d => ({ code: d.id, groupName: (d.data() as AppState).groupName ?? `Group_${d.id}` }));
 }
 
 export async function groupExists(code: string): Promise<boolean> {
@@ -115,6 +120,10 @@ export function useFirebaseStore(groupCode: string) {
     update(() => newState);
   }, [update]);
 
+  const updateGroupName = useCallback((name: string) => {
+    update(s => ({ ...s, groupName: name.trim() || `Group_${groupCode}` }));
+  }, [update, groupCode]);
+
   // ── Balance calculations ────────────────────────────────────────
   const getBalances = useCallback(
     () => computeBalances(state.people, state.expenses, state.payments),
@@ -137,6 +146,7 @@ export function useFirebaseStore(groupCode: string) {
     addPayment,
     removePayment,
     replaceState,
+    updateGroupName,
     getBalances,
     getSettlements,
   };

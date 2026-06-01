@@ -1,22 +1,25 @@
 import { useState } from 'react';
-import { createGroup, groupExists, generateGroupCode } from '../store/useFirebaseStore';
+import { createGroup, groupExists, generateGroupCode, searchGroupsByName } from '../store/useFirebaseStore';
+import type { GroupSearchResult } from '../types';
 
 interface Props {
   onJoin: (code: string) => void;
 }
 
+const CODE_PATTERN = /^[A-Z0-9]{6}$/;
+
 export default function GroupSetup({ onJoin }: Props) {
   const [mode, setMode] = useState<'choose' | 'join'>('choose');
-  const [joinCode, setJoinCode] = useState('');
+  const [query, setQuery] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [results, setResults] = useState<GroupSearchResult[] | null>(null);
 
   const handleCreate = async () => {
     setLoading(true);
     setError('');
     try {
       let code = generateGroupCode();
-      // Avoid (unlikely) collisions
       while (await groupExists(code)) {
         code = generateGroupCode();
       }
@@ -29,21 +32,38 @@ export default function GroupSetup({ onJoin }: Props) {
     }
   };
 
-  const handleJoin = async () => {
-    const code = joinCode.trim().toUpperCase();
-    if (code.length !== 6) { setError('Enter a valid 6-character code.'); return; }
+  const handleSearch = async () => {
+    const input = query.trim().toUpperCase();
+    if (!input) { setError('Enter a group code or group name.'); return; }
     setLoading(true);
     setError('');
+    setResults(null);
     try {
-      const exists = await groupExists(code);
-      if (!exists) { setError('Group not found. Double-check the code.'); return; }
-      onJoin(code);
+      // Looks like a code — try exact code lookup first
+      if (CODE_PATTERN.test(input)) {
+        const exists = await groupExists(input);
+        if (exists) { onJoin(input); return; }
+        setError('Group not found. Double-check the code.');
+        return;
+      }
+      // Otherwise treat as group name search (case-sensitive, exact match)
+      const originalCase = query.trim();
+      const found = await searchGroupsByName(originalCase);
+      if (found.length === 0) {
+        setError(`No groups found with name "${originalCase}".`);
+      } else if (found.length === 1) {
+        onJoin(found[0].code);
+      } else {
+        setResults(found);
+      }
     } catch {
       setError('Failed to connect. Check your connection and try again.');
     } finally {
       setLoading(false);
     }
   };
+
+  const resetJoin = () => { setMode('choose'); setError(''); setQuery(''); setResults(null); };
 
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
@@ -74,38 +94,60 @@ export default function GroupSetup({ onJoin }: Props) {
               onClick={() => setMode('join')}
               disabled={loading}
             >
-              Enter a group code
+              Enter a group code or name
             </button>
             {error && <p className="text-xs text-red-500">{error}</p>}
           </div>
         )}
 
-        {mode === 'join' && (
+        {mode === 'join' && !results && (
           <div className="card space-y-4">
             <div className="flex items-center gap-2">
-              <button onClick={() => { setMode('choose'); setError(''); }} className="text-gray-400 hover:text-gray-600 text-lg leading-none">←</button>
+              <button onClick={resetJoin} className="text-gray-400 hover:text-gray-600 text-lg leading-none">←</button>
               <h2 className="text-base font-bold text-gray-800">Join a group</h2>
             </div>
             <div>
-              <label className="label">Group code</label>
+              <label className="label">Group code or name</label>
               <input
-                className="input uppercase tracking-widest text-center text-lg font-bold"
-                placeholder="ABC123"
-                maxLength={6}
-                value={joinCode}
-                onChange={e => { setJoinCode(e.target.value.toUpperCase()); setError(''); }}
-                onKeyDown={e => e.key === 'Enter' && handleJoin()}
+                className="input"
+                placeholder="ABC123 or My Trip"
+                value={query}
+                onChange={e => { setQuery(e.target.value); setError(''); }}
+                onKeyDown={e => e.key === 'Enter' && handleSearch()}
                 autoFocus
               />
+              <p className="text-xs text-gray-400 mt-1">Enter the 6-character code or the group name.</p>
             </div>
             {error && <p className="text-xs text-red-500">{error}</p>}
             <button
               className="btn-primary w-full"
-              onClick={handleJoin}
-              disabled={loading || joinCode.length !== 6}
+              onClick={handleSearch}
+              disabled={loading || !query.trim()}
             >
-              {loading ? 'Joining…' : 'Join group'}
+              {loading ? 'Searching…' : 'Find group'}
             </button>
+          </div>
+        )}
+
+        {mode === 'join' && results && (
+          <div className="card space-y-4">
+            <div className="flex items-center gap-2">
+              <button onClick={() => setResults(null)} className="text-gray-400 hover:text-gray-600 text-lg leading-none">←</button>
+              <h2 className="text-base font-bold text-gray-800">Multiple groups found</h2>
+            </div>
+            <p className="text-sm text-gray-500">Select the group you want to join.</p>
+            <div className="space-y-2">
+              {results.map(r => (
+                <button
+                  key={r.code}
+                  className="w-full text-left border border-gray-200 rounded-lg px-4 py-3 hover:bg-green-50 hover:border-green-400 transition-colors"
+                  onClick={() => onJoin(r.code)}
+                >
+                  <p className="font-semibold text-gray-800 text-sm">{r.groupName}</p>
+                  <p className="text-xs text-gray-400 font-mono mt-0.5">{r.code}</p>
+                </button>
+              ))}
+            </div>
           </div>
         )}
 

@@ -46,7 +46,13 @@ export interface Payment {
 }
 
 export interface AppState {
+  groupName?: string;
   people: Person[];
   expenses: Expense[];
   payments: Payment[];
+}
+
+export interface GroupSearchResult {
+  code: string;
+  groupName: string;
 }
