@@ -9,7 +9,8 @@ interface Props {
 const CODE_PATTERN = /^[A-Z0-9]{6}$/;
 
 export default function GroupSetup({ onJoin }: Props) {
-  const [mode, setMode] = useState<'choose' | 'join'>('choose');
+  const [mode, setMode] = useState<'choose' | 'create' | 'join'>('choose');
+  const [newGroupName, setNewGroupName] = useState('');
   const [query, setQuery] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -23,7 +24,8 @@ export default function GroupSetup({ onJoin }: Props) {
       while (await groupExists(code)) {
         code = generateGroupCode();
       }
-      await createGroup(code);
+      const name = newGroupName.trim() || `Group_${code}`;
+      await createGroup(code, name);
       onJoin(code);
     } catch {
       setError('Failed to create group. Check your connection and try again.');
@@ -46,11 +48,10 @@ export default function GroupSetup({ onJoin }: Props) {
         setError('Group not found. Double-check the code.');
         return;
       }
-      // Otherwise treat as group name search (case-sensitive, exact match)
-      const originalCase = query.trim();
-      const found = await searchGroupsByName(originalCase);
+      // Otherwise treat as group name search (case-insensitive contains)
+      const found = await searchGroupsByName(query.trim());
       if (found.length === 0) {
-        setError(`No groups found with name "${originalCase}".`);
+        setError(`No groups found matching "${query.trim()}".`);
       } else if (found.length === 1) {
         onJoin(found[0].code);
       } else {
@@ -63,7 +64,13 @@ export default function GroupSetup({ onJoin }: Props) {
     }
   };
 
-  const resetJoin = () => { setMode('choose'); setError(''); setQuery(''); setResults(null); };
+  const resetToChoose = () => {
+    setMode('choose');
+    setError('');
+    setQuery('');
+    setNewGroupName('');
+    setResults(null);
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
@@ -76,6 +83,7 @@ export default function GroupSetup({ onJoin }: Props) {
           <p className="text-sm text-gray-500 mt-1">Expense splitter — synced across all your devices</p>
         </div>
 
+        {/* ── Choose mode ── */}
         {mode === 'choose' && (
           <div className="card space-y-3">
             <h2 className="text-base font-bold text-gray-800">Get started</h2>
@@ -84,10 +92,10 @@ export default function GroupSetup({ onJoin }: Props) {
             </p>
             <button
               className="btn-primary w-full"
-              onClick={handleCreate}
+              onClick={() => setMode('create')}
               disabled={loading}
             >
-              {loading ? 'Creating…' : '✦ Create a new group'}
+              ✦ Create a new group
             </button>
             <button
               className="btn-secondary w-full"
@@ -100,10 +108,42 @@ export default function GroupSetup({ onJoin }: Props) {
           </div>
         )}
 
+        {/* ── Create mode ── */}
+        {mode === 'create' && (
+          <div className="card space-y-4">
+            <div className="flex items-center gap-2">
+              <button onClick={resetToChoose} className="text-gray-400 hover:text-gray-600 text-lg leading-none">←</button>
+              <h2 className="text-base font-bold text-gray-800">Create a new group</h2>
+            </div>
+            <div>
+              <label className="label">Group name <span className="text-gray-400 font-normal">(optional)</span></label>
+              <input
+                className="input"
+                placeholder="e.g. Bali Trip, Roommates, Family"
+                value={newGroupName}
+                onChange={e => { setNewGroupName(e.target.value); setError(''); }}
+                onKeyDown={e => e.key === 'Enter' && handleCreate()}
+                autoFocus
+                maxLength={60}
+              />
+              <p className="text-xs text-gray-400 mt-1">Leave blank to use a default name — you can rename it later.</p>
+            </div>
+            {error && <p className="text-xs text-red-500">{error}</p>}
+            <button
+              className="btn-primary w-full"
+              onClick={handleCreate}
+              disabled={loading}
+            >
+              {loading ? 'Creating…' : 'Create group'}
+            </button>
+          </div>
+        )}
+
+        {/* ── Join mode ── */}
         {mode === 'join' && !results && (
           <div className="card space-y-4">
             <div className="flex items-center gap-2">
-              <button onClick={resetJoin} className="text-gray-400 hover:text-gray-600 text-lg leading-none">←</button>
+              <button onClick={resetToChoose} className="text-gray-400 hover:text-gray-600 text-lg leading-none">←</button>
               <h2 className="text-base font-bold text-gray-800">Join a group</h2>
             </div>
             <div>
@@ -129,6 +169,7 @@ export default function GroupSetup({ onJoin }: Props) {
           </div>
         )}
 
+        {/* ── Multiple results picker ── */}
         {mode === 'join' && results && (
           <div className="card space-y-4">
             <div className="flex items-center gap-2">

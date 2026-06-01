@@ -12,12 +12,12 @@ const COLORS = [
 
 const EMPTY_STATE: AppState = { people: [], expenses: [], payments: [] };
 
-export async function createGroup(code: string): Promise<void> {
-  const defaultName = `Group_${code}`;
+export async function createGroup(code: string, name?: string): Promise<void> {
+  const groupName = name?.trim() || `Group_${code}`;
   await setDoc(doc(db, 'groups', code), {
     ...EMPTY_STATE,
-    groupName: defaultName,
-    groupNameLower: defaultName.toLowerCase(),
+    groupName,
+    groupNameLower: groupName.toLowerCase(),
   });
 }
 
