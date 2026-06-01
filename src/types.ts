@@ -47,6 +47,7 @@ export interface Payment {
 
 export interface AppState {
   groupName?: string;
+  groupNameLower?: string;   // lowercase copy used for case-insensitive search
   people: Person[];
   expenses: Expense[];
   payments: Payment[];

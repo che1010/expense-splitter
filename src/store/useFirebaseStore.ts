@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { doc, onSnapshot, setDoc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import { doc, onSnapshot, setDoc, getDoc, collection, getDocs } from 'firebase/firestore';
 import { v4 as uuidv4 } from 'uuid';
 import { db } from '../firebase';
 import type { AppState, Person, Expense, Payment, GroupSearchResult } from '../types';
@@ -13,12 +13,30 @@ const COLORS = [
 const EMPTY_STATE: AppState = { people: [], expenses: [], payments: [] };
 
 export async function createGroup(code: string): Promise<void> {
-  await setDoc(doc(db, 'groups', code), { ...EMPTY_STATE, groupName: `Group_${code}` });
+  const defaultName = `Group_${code}`;
+  await setDoc(doc(db, 'groups', code), {
+    ...EMPTY_STATE,
+    groupName: defaultName,
+    groupNameLower: defaultName.toLowerCase(),
+  });
 }
 
-export async function searchGroupsByName(name: string): Promise<GroupSearchResult[]> {
-  const snap = await getDocs(query(collection(db, 'groups'), where('groupName', '==', name)));
-  return snap.docs.map(d => ({ code: d.id, groupName: (d.data() as AppState).groupName ?? `Group_${d.id}` }));
+export async function searchGroupsByName(input: string): Promise<GroupSearchResult[]> {
+  const lower = input.trim().toLowerCase();
+  // Fetch all groups and filter client-side for case-insensitive contains match.
+  // Appropriate for this app's scale (small number of groups per user).
+  const snap = await getDocs(collection(db, 'groups'));
+  return snap.docs
+    .filter(d => {
+      const data = d.data() as AppState;
+      // Use stored lowercase field if available; fall back to lowercasing on the fly
+      const nameLower = data.groupNameLower ?? data.groupName?.toLowerCase() ?? '';
+      return nameLower.includes(lower);
+    })
+    .map(d => ({
+      code: d.id,
+      groupName: (d.data() as AppState).groupName ?? `Group_${d.id}`,
+    }));
 }
 
 export async function groupExists(code: string): Promise<boolean> {
@@ -121,7 +139,12 @@ export function useFirebaseStore(groupCode: string) {
   }, [update]);
 
   const updateGroupName = useCallback((name: string) => {
-    update(s => ({ ...s, groupName: name.trim() || `Group_${groupCode}` }));
+    const trimmed = name.trim() || `Group_${groupCode}`;
+    update(s => ({
+      ...s,
+      groupName: trimmed,
+      groupNameLower: trimmed.toLowerCase(),
+    }));
   }, [update, groupCode]);
 
   // ── Balance calculations ────────────────────────────────────────
