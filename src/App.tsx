@@ -28,6 +28,8 @@ function MainApp({ groupCode, onLeave }: { groupCode: string; onLeave: () => voi
   const [paymentPrefill, setPaymentPrefill] = useState<PaymentPrefill>({});
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
   const [copied, setCopied] = useState(false);
+  const [editingName, setEditingName] = useState(false);
+  const [nameInput, setNameInput] = useState('');
 
   const balances = store.getBalances();
   const settlements = store.getSettlements();
@@ -65,6 +67,14 @@ function MainApp({ groupCode, onLeave }: { groupCode: string; onLeave: () => voi
     });
   };
 
+  const groupName = store.state.groupName ?? `Group_${groupCode}`;
+
+  const startEditingName = () => { setNameInput(groupName); setEditingName(true); };
+  const saveGroupName = () => {
+    store.updateGroupName(nameInput);
+    setEditingName(false);
+  };
+
   const canAddExpense = store.state.people.length >= 2;
   const canRecordPayment = store.state.people.length >= 2;
   const totalSpent = store.state.expenses.reduce((s, e) => s + e.total, 0);
@@ -79,13 +89,34 @@ function MainApp({ groupCode, onLeave }: { groupCode: string; onLeave: () => voi
           <div className="flex items-center gap-2">
             <span className="text-2xl">💸</span>
             <div>
-              <h1 className="text-lg font-bold text-gray-900 leading-tight">SplitEase</h1>
+              {editingName ? (
+                <div className="flex items-center gap-1">
+                  <input
+                    className="text-sm font-bold border border-green-400 rounded px-2 py-0.5 outline-none w-40"
+                    value={nameInput}
+                    onChange={e => setNameInput(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') saveGroupName(); if (e.key === 'Escape') setEditingName(false); }}
+                    autoFocus
+                  />
+                  <button onClick={saveGroupName} className="text-xs text-green-600 font-semibold hover:text-green-700">Save</button>
+                  <button onClick={() => setEditingName(false)} className="text-xs text-gray-400 hover:text-gray-600">✕</button>
+                </div>
+              ) : (
+                <button
+                  onClick={startEditingName}
+                  className="text-sm font-bold text-gray-900 hover:text-green-700 transition-colors flex items-center gap-1 leading-tight"
+                  title="Click to rename group"
+                >
+                  {groupName}
+                  <span className="text-gray-300 text-xs">✎</span>
+                </button>
+              )}
               <button
                 onClick={copyCode}
                 className="text-xs text-gray-400 hover:text-green-600 transition-colors font-mono"
                 title="Click to copy group code"
               >
-                {copied ? '✓ Copied!' : `Group: ${groupCode}`}
+                {copied ? '✓ Copied!' : `Code: ${groupCode}`}
               </button>
             </div>
           </div>

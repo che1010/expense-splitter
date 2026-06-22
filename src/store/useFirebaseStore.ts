@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { doc, onSnapshot, setDoc, getDoc } from 'firebase/firestore';
+import { doc, onSnapshot, setDoc, getDoc, collection, getDocs, updateDoc } from 'firebase/firestore';
 import { v4 as uuidv4 } from 'uuid';
 import { db } from '../firebase';
-import type { AppState, Person, Expense, Payment } from '../types';
+import type { AppState, Person, Expense, Payment, GroupSearchResult } from '../types';
 import { computeBalances, computeBilateralSettlements } from '../utils/balanceCalculations';
 
 const COLORS = [
@@ -12,8 +12,31 @@ const COLORS = [
 
 const EMPTY_STATE: AppState = { people: [], expenses: [], payments: [] };
 
-export async function createGroup(code: string): Promise<void> {
-  await setDoc(doc(db, 'groups', code), EMPTY_STATE);
+export async function createGroup(code: string, name?: string): Promise<void> {
+  const groupName = name?.trim() || `Group_${code}`;
+  await setDoc(doc(db, 'groups', code), {
+    ...EMPTY_STATE,
+    groupName,
+    groupNameLower: groupName.toLowerCase(),
+  });
+}
+
+export async function searchGroupsByName(input: string): Promise<GroupSearchResult[]> {
+  const lower = input.trim().toLowerCase();
+  // Fetch all groups and filter client-side for case-insensitive contains match.
+  // Appropriate for this app's scale (small number of groups per user).
+  const snap = await getDocs(collection(db, 'groups'));
+  return snap.docs
+    .filter(d => {
+      const data = d.data() as AppState;
+      // Use stored lowercase field if available; fall back to lowercasing on the fly
+      const nameLower = data.groupNameLower ?? data.groupName?.toLowerCase() ?? '';
+      return nameLower.includes(lower);
+    })
+    .map(d => ({
+      code: d.id,
+      groupName: (d.data() as AppState).groupName ?? `Group_${d.id}`,
+    }));
 }
 
 export async function groupExists(code: string): Promise<boolean> {
@@ -37,11 +60,20 @@ export function useFirebaseStore(groupCode: string) {
   useEffect(() => {
     const unsubscribe = onSnapshot(docRef, (snap) => {
       if (snap.exists()) {
-        setState(snap.data() as AppState);
+        const data = snap.data() as AppState;
+        setState(data);
+        // Backfill groupName for groups created before this feature existed
+        if (!data.groupName) {
+          const defaultName = `Group_${groupCode}`;
+          updateDoc(docRef, {
+            groupName: defaultName,
+            groupNameLower: defaultName.toLowerCase(),
+          }).catch(() => { /* non-critical — silently ignore */ });
+        }
       }
     });
     return unsubscribe;
-  }, [docRef]);
+  }, [docRef, groupCode]);
 
   // Write the full state back to Firestore
   const persist = useCallback(async (nextState: AppState) => {
@@ -115,6 +147,15 @@ export function useFirebaseStore(groupCode: string) {
     update(() => newState);
   }, [update]);
 
+  const updateGroupName = useCallback((name: string) => {
+    const trimmed = name.trim() || `Group_${groupCode}`;
+    update(s => ({
+      ...s,
+      groupName: trimmed,
+      groupNameLower: trimmed.toLowerCase(),
+    }));
+  }, [update, groupCode]);
+
   // ── Balance calculations ────────────────────────────────────────
   const getBalances = useCallback(
     () => computeBalances(state.people, state.expenses, state.payments),
@@ -137,6 +178,7 @@ export function useFirebaseStore(groupCode: string) {
     addPayment,
     removePayment,
     replaceState,
+    updateGroupName,
     getBalances,
     getSettlements,
   };
